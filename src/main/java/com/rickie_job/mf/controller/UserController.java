@@ -2,8 +2,10 @@ package com.rickie_job.mf.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.rickie_job.mf.common.BaseResponse;
+import com.rickie_job.mf.common.DataHolder;
 import com.rickie_job.mf.common.ErrorCode;
 import com.rickie_job.mf.common.ResultUtils;
+import com.rickie_job.mf.constant.AuthConstant;
 import com.rickie_job.mf.exception.BusinessException;
 import com.rickie_job.mf.model.domain.User;
 import com.rickie_job.mf.model.domain.request.UserLoginRequest;
@@ -14,7 +16,9 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,10 +32,6 @@ import static com.rickie_job.mf.constant.UserConstant.USER_LOGIN_STATE;
 
 @RestController
 @RequestMapping("/user")
-//跨域问题解决
-@CrossOrigin(origins = { "http://localhost:5173" },
-        allowCredentials = "true")
-//@CrossOrigin
 public class UserController {
 
     @Resource
@@ -58,7 +58,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public BaseResponse<User> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
+    public BaseResponse<User> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request, HttpServletResponse response){
         if (userLoginRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户登录请求为空");
         }
@@ -70,6 +70,16 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR,"有数据为空");
         }
         User user = userService.userLogin(userAccount, userPassword, request);
+
+        if (user != null) {
+            String token = userService.generateToken(user);
+            Cookie cookie = new Cookie(AuthConstant.MF_AUTH, token);
+            cookie.setPath("/");
+            cookie.setHttpOnly(true);
+            cookie.setSecure(false);
+            response.addCookie(cookie);
+        }
+
         return ResultUtils.success(user);
 
     }
@@ -87,8 +97,7 @@ public class UserController {
 
     @GetMapping("/current")
     public BaseResponse<User> getCurrentUser(HttpServletRequest request) {
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
+        User currentUser = DataHolder.getUserInfo();
         if (currentUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN,"无法正确获取请求中的数据");
         }
