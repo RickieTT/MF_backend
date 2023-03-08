@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.rickie_job.mf.common.DataHolder;
 import com.rickie_job.mf.common.ErrorCode;
 import com.rickie_job.mf.exception.BusinessException;
 import com.rickie_job.mf.service.UserService;
@@ -11,16 +12,15 @@ import com.rickie_job.mf.model.domain.User;
 import com.rickie_job.mf.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,6 +42,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     //DAO层 从数据库中访问数据并且返回成Java对象
     @Resource
     private UserMapper userMapper;
+
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
 
     /**
      * 盐值 混淆密码
@@ -306,11 +309,26 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Override
     public int userLogout(HttpServletRequest request) {
         //移除登录态
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        String token = DataHolder.getUserToken();
+        redisTemplate.delete(token);
         return 1;
     }
 
-
+    /**
+     * 生成token
+     * @return
+     */
+    @Override
+    public String generateToken(User user) {
+        // 1 生成token
+        String token = UUID.randomUUID().toString();
+        // 2 把token存到redis中
+        Gson gson = new Gson();
+        String userJson = gson.toJson(user);
+        redisTemplate.opsForValue().set(token, userJson, 30 * 2, TimeUnit.MINUTES);
+        // 3 把token返回给客户端
+        return token;
+    }
 }
 
 

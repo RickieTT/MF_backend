@@ -82,4 +82,5 @@ public interface UserService extends IService<User> {
      */
     boolean isAdmin(User loginUser);
 
+    String generateToken(User user);
 }
